@@ -1,0 +1,31 @@
+# ── MySQL (from Railway Variables tab) ──────────────────────
+DB_HOST=          # MYSQLHOST
+DB_USER=          # MYSQLUSER
+DB_PASS=          # MYSQLPASSWORD
+DB_NAME=          # MYSQLDATABASE
+DB_PORT=          # MYSQLPORT
+
+# For local MySQL use:
+# DB_HOST=localhost
+# DB_USER=root
+# DB_PASS=your_password
+# DB_NAME=cryochain
+# DB_PORT=3306
+
+# ── JWT ─────────────────────────────────────────────────────
+# Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+JWT_SECRET=replace_with_long_random_string_min_32_chars
+
+# ── Server ──────────────────────────────────────────────────
+PORT=5000
+CLIENT_URL=http://localhost:3000
+
+# ── Redis (optional — app works without it) ─────────────────
+# REDIS_URL=redis://localhost:6379
+
+# ── Email (optional — for excursion email alerts) ───────────
+# SMTP_HOST=smtp.gmail.com
+# SMTP_PORT=587
+# SMTP_USER=your_gmail@gmail.com
+# SMTP_PASS=your_16_char_app_password
+# OPS_ALERT_EMAIL=ops@yourcompany.com
