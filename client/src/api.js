@@ -1,5 +1,10 @@
 // ================================================================
-//  src/api.js — Every server call in one place
+//  src/api.js — Frontend API Client (Axios)
+//
+//  This file centralizes ALL communication between the React frontend
+//  and the Express backend. By keeping all API calls here, components
+//  remain clean and decoupled from network logic.
+//  
 //  Import: import api from "./api"
 //  Use:    const data = await api.orders.getAll()
 // ================================================================
@@ -7,26 +12,46 @@ import axios from "axios";
 
 // One Axios instance pointing at the Express server
 const server = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || "http://localhost:5001",
+  baseURL: process.env.REACT_APP_API_URL || "http://192.168.29.168:5001",
   timeout: 20000
 });
 
-// Attach JWT token to every request automatically
+// ── Axios Interceptors ─────────────────────────────────────────
+// Interceptors are like middleware for the frontend.
+// 
+// 1. Request Interceptor: Before ANY request leaves the browser, 
+// this intercepts it, grabs the 'cryo_token' (JWT) from localStorage,
+// and attaches it to the Authorization header. This prevents us from 
+// having to manually pass the token in every single API call.
+// This is critical for stateless JSON Web Token (JWT) architecture.
+// ─────────────────────────────────────────────────────────────
 server.interceptors.request.use(config => {
   const token = localStorage.getItem("cryo_token");
+  // We format it as "Bearer <token>" as per the OAuth 2.0 specification.
   if (token) config.headers.Authorization = "Bearer " + token;
   return config;
 });
 
-// If token expires, clear storage and go to login
+// 2. Response Interceptor: Listens to incoming responses.
+// If the server returns a 401 Unauthorized (meaning the token expired
+// or is invalid), it automatically clears the local storage and 
+// forces the user back to the login page safely. 
+// This essentially handles global session expiration across the entire app.
+// ─────────────────────────────────────────────────────────────
 server.interceptors.response.use(
+  // If the response is successful (2xx), just pass it through untouched.
   res => res,
+  // If the server threw an error (4xx or 5xx), intercept it here.
   err => {
     if (err.response?.status === 401) {
+      // 401 implies the JWT was rejected by checkAuth in server.js.
       localStorage.removeItem("cryo_token");
       localStorage.removeItem("cryo_user");
+      // Force a hard redirect, wiping React state.
       window.location.href = "/";
     }
+    // Eject the error back to the caller (e.g., useFetch or useSubmit) 
+    // so they can render the red error toast.
     return Promise.reject(err);
   }
 );

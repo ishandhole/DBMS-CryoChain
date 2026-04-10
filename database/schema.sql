@@ -12,7 +12,11 @@
 CREATE DATABASE IF NOT EXISTS cryochain;
 USE cryochain;
 
--- ── 1. Tenants (client companies) ──────────────────────────
+-- ── 1. Tenants (Client Companies) ────────────────────────────────
+-- Stores the profiles of various client pharmaceutical companies.
+-- Each tenant represents an isolated workspace in the system protecting their data.
+-- Status allows for soft-deletion / suspension of client accounts.
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE tenants (
     tenant_id    INT AUTO_INCREMENT PRIMARY KEY,
     company_name VARCHAR(150) NOT NULL,
@@ -22,7 +26,12 @@ CREATE TABLE tenants (
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ── 2. Users ────────────────────────────────────────────────
+-- ── 2. Users ───────────────────────────────────────────────────
+-- Represents individuals who can log into the system.
+-- Contains role-based access control flags via the ENUM 'role'.
+-- Users are linked to a specific tenant unless they are an 'ops_admin' (system wide).
+-- Secure bcrypt password hashes are stored rather than raw text.
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE users (
     user_id       INT AUTO_INCREMENT PRIMARY KEY,
     tenant_id     INT,
@@ -36,7 +45,11 @@ CREATE TABLE users (
     FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE SET NULL
 );
 
--- ── 3. Warehouses ───────────────────────────────────────────
+-- ── 3. Warehouses ──────────────────────────────────────────────
+-- Represents physical storage hubs globally.
+-- Contains coordinates (lat/lng) for distance calculations and map plotting.
+-- 'hub_status' helps ops plan routing (avoiding OFF or STRESSED hubs).
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE warehouses (
     warehouse_id INT AUTO_INCREMENT PRIMARY KEY,
     name         VARCHAR(150) NOT NULL,
@@ -49,7 +62,11 @@ CREATE TABLE warehouses (
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ── 4. Raw Materials ────────────────────────────────────────
+-- ── 4. Raw Materials ───────────────────────────────────────────
+-- The overarching catalog of materials (e.g., vaccines, biological samples).
+-- Essential constraint: 'temp_zone' enforces the logistical handling rules 
+-- (e.g., transporting minus70C biologicals requires different carriers).
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE raw_materials (
     material_id     INT AUTO_INCREMENT PRIMARY KEY,
     material_name   VARCHAR(200) NOT NULL,
@@ -61,7 +78,11 @@ CREATE TABLE raw_materials (
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ── 5. Material Certifications ──────────────────────────────
+-- ── 5. Material Certifications ─────────────────────────────────
+-- Links compliance paperwork proving a material is safe/certified.
+-- Demonstrates One-to-Many dependency: One material has multiple certs.
+-- The system's CRON job checks 'expiry_date' daily to alert admins.
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE material_certifications (
     cert_id       INT AUTO_INCREMENT PRIMARY KEY,
     material_id   INT NOT NULL,
@@ -75,7 +96,11 @@ CREATE TABLE material_certifications (
     FOREIGN KEY (material_id) REFERENCES raw_materials(material_id) ON DELETE CASCADE
 );
 
--- ── 6. Inventory ────────────────────────────────────────────
+-- ── 6. Inventory ───────────────────────────────────────────────
+-- Tracks stock levels for materials AT specific warehouses.
+-- Uses a Composite Unique Key (material_id, warehouse_id) to prevent duplicate rows.
+-- 'reorder_threshold' allows for automated restocking alerts when stock dips.
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE inventory (
     inventory_id      INT AUTO_INCREMENT PRIMARY KEY,
     material_id       INT NOT NULL,
@@ -88,7 +113,10 @@ CREATE TABLE inventory (
     FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id)
 );
 
--- ── 7. Carriers ─────────────────────────────────────────────
+-- ── 7. Carriers ────────────────────────────────────────────────
+-- Third-party logistics providers (e.g., FedEx, Maersk).
+-- 'capacity_pct' can dynamically scale to simulate network constraints.
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE carriers (
     carrier_id     INT AUTO_INCREMENT PRIMARY KEY,
     carrier_name   VARCHAR(150) NOT NULL,
@@ -99,7 +127,11 @@ CREATE TABLE carriers (
     is_active      BOOLEAN DEFAULT TRUE
 );
 
--- ── 8. Routes ───────────────────────────────────────────────
+-- ── 8. Routes ──────────────────────────────────────────────────
+-- Defines the predefined shipping lanes connecting a warehouse to a city.
+-- Critical for the 'findBestRoute' algorithm.
+-- 'risk_score' is weighted mechanically backend to decide the most viable route.
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE routes (
     route_id            INT AUTO_INCREMENT PRIMARY KEY,
     origin_warehouse_id INT,
@@ -115,7 +147,11 @@ CREATE TABLE routes (
     FOREIGN KEY (carrier_id)          REFERENCES carriers(carrier_id)
 );
 
--- ── 9. Procurement Requests ─────────────────────────────────
+-- ── 9. Procurement Requests ────────────────────────────────────
+-- When a Client needs material, they generate a PRQ here.
+-- Acts as the first step in the logistics workflow.
+-- Once 'APPROVED' by Ops, a matching Shipment Order is instantiated automatically.
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE procurement_requests (
     request_id         INT AUTO_INCREMENT PRIMARY KEY,
     tenant_id          INT NOT NULL,
@@ -138,7 +174,12 @@ CREATE TABLE procurement_requests (
     FOREIGN KEY (reviewed_by)  REFERENCES users(user_id)
 );
 
--- ── 10. Shipment Orders ─────────────────────────────────────
+-- ── 10. Shipment Orders ────────────────────────────────────────
+-- The master record for a validated logistics run.
+-- Maintains a hard link to the PRQ it originated from.
+-- Uses ENUMs for 'status' (finite state machine representing the lifecycle)
+-- and 'urgency' to apply priority cost multipliers.
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE shipment_orders (
     order_id               INT AUTO_INCREMENT PRIMARY KEY,
     tenant_id              INT NOT NULL,
@@ -165,7 +206,11 @@ CREATE TABLE shipment_orders (
     FOREIGN KEY (origin_warehouse_id)    REFERENCES warehouses(warehouse_id)
 );
 
--- ── 11. Shipment Tracking ───────────────────────────────────
+-- ── 11. Shipment Tracking ──────────────────────────────────────
+-- Houses the "live" transactional and spatial data for a shipment.
+-- Supports the frontend map via 'current_lat' and 'current_lng'.
+-- Extracted from shipment_orders to allow frequent updates without locking the master record.
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE shipment_tracking (
     tracking_id      INT AUTO_INCREMENT PRIMARY KEY,
     order_id         INT NOT NULL,
@@ -184,7 +229,12 @@ CREATE TABLE shipment_tracking (
     FOREIGN KEY (route_id)   REFERENCES routes(route_id)
 );
 
--- ── 12. Temperature Logs ────────────────────────────────────
+-- ── 12. Temperature Logs ───────────────────────────────────────
+-- Emulates an IoT sensor stream inside a cold chain container.
+-- Tracks 'is_excursion' to immediately spot if the temp violated safe zones.
+-- Uses compound INDEXing (order_id, recorded_at) to dramatically speed up 
+-- the frequent timeline queries required by the frontend charts.
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE temperature_logs (
     log_id              INT AUTO_INCREMENT PRIMARY KEY,
     order_id            INT NOT NULL,
@@ -199,7 +249,10 @@ CREATE TABLE temperature_logs (
     FOREIGN KEY (order_id) REFERENCES shipment_orders(order_id)
 );
 
--- ── 13. Compliance Documents ────────────────────────────────
+-- ── 13. Compliance Documents ───────────────────────────────────
+-- Metadata tracking for physically uploaded pdfs/images tied to shipments.
+-- Expiry dates tie into the system-wide CRON compliance checker.
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE compliance_documents (
     doc_id      INT AUTO_INCREMENT PRIMARY KEY,
     order_id    INT NOT NULL,
@@ -213,7 +266,11 @@ CREATE TABLE compliance_documents (
     FOREIGN KEY (order_id) REFERENCES shipment_orders(order_id)
 );
 
--- ── 14. Alerts ──────────────────────────────────────────────
+-- ── 14. Alerts ─────────────────────────────────────────────────
+-- Centralised Notification engine.
+-- Instead of hardcoding alerts in code, backend drops records here.
+-- The frontend polls or receives socket events for these records.
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE alerts (
     alert_id    INT AUTO_INCREMENT PRIMARY KEY,
     tenant_id   INT,
@@ -228,7 +285,10 @@ CREATE TABLE alerts (
     FOREIGN KEY (order_id)  REFERENCES shipment_orders(order_id)
 );
 
--- ── 15. Audit Log ───────────────────────────────────────────
+-- ── 15. Audit Log ──────────────────────────────────────────────
+-- Provides a crucial security and compliance trail (who did what, when).
+-- Stores state snapshots using JSON fields.
+-- ───────────────────────────────────────────────────────────────
 CREATE TABLE audit_log (
     log_id      INT AUTO_INCREMENT PRIMARY KEY,
     user_id     INT,
@@ -243,7 +303,14 @@ CREATE TABLE audit_log (
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
--- ── Views ────────────────────────────────────────────────────
+-- ── Views (Virtual Tables for complex reads) ───────────────────
+-- Views abstract complex JOIN operations so the Node.js API can query 
+-- them cleanly as if they were standard flat tables.
+-- 
+-- 1. v_tenant_shipments: Aggregates everything needed to show a shipment row.
+-- 2. v_low_inventory: Contains business logic (CASE WHEN) to dynamically calculate stock risk.
+-- 3. v_expiring_compliance: Instantly finds docs expiring in next 14 days globally.
+-- ───────────────────────────────────────────────────────────────
 CREATE VIEW v_tenant_shipments AS
 SELECT so.order_id, so.tenant_id, t.company_name, rm.material_name, rm.sku,
        so.quantity_ordered, so.temp_zone, so.status, so.urgency,

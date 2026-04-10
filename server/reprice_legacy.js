@@ -1,3 +1,13 @@
+// ================================================================
+//  reprice_legacy.js (Admin Script)
+//
+//  This script audits all historical shipment orders in the database
+//  and recalculates their `estimated_cost_usd` and `risk_score` using
+//  the newly implemented `findBestRoute` algorithm. It essentially
+//  migrates old shipments to use the dynamic pricing model based on
+//  the latest Route and Carrier data.
+// ================================================================
+
 const mysql = require("mysql2/promise");
 require("dotenv").config();
 

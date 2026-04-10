@@ -1,6 +1,11 @@
 // ================================================================
-//  CryoChain — server.js
-//  Run: node server.js  |  Port: 5000
+//  CryoChain — server.js (Main Backend Application)
+//  Run: node server.js  |  Port: 5001
+//
+//  This file initializes the Express.js server, connects to MySQL,
+//  sets up security middleware (CORS, Rate Limiting, JWT Auth),
+//  establishes a Socket.io connection for real-time alerts,
+//  and defines all the REST API endpoints used by the frontend.
 // ================================================================
 
 const express   = require("express");
@@ -21,7 +26,11 @@ const PDFKit    = require("pdfkit");
 const redis     = require("redis");
 require("dotenv").config();
 
-// ── App + Socket.io ──────────────────────────────────────────
+// ── App + Socket.io Setup ──────────────────────────────────────
+// Initialize Express and HTTP server. Socket.io is attached to the 
+// HTTP server to allow bidirectional real-time communication 
+// (e.g., pushing alert notifications immediately to the browser).
+// ─────────────────────────────────────────────────────────────
 const app    = express();
 const server = http.createServer(app);
 const io     = new socketIO.Server(server, {
@@ -32,7 +41,11 @@ app.use(cors());
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
-// ── File Upload (multer) ─────────────────────────────────────
+// ── File Upload (multer) ───────────────────────────────────────
+// Multer acts as middleware for handling multipart/form-data,
+// which is used for uploading Compliance Document PDF/Images.
+// Files are saved to the local 'uploads/compliance' directory.
+// ─────────────────────────────────────────────────────────────
 const storage = multer.diskStorage({
   destination(req, file, cb) {
     const dir = "uploads/compliance";
@@ -52,11 +65,18 @@ const upload = multer({
   }
 });
 
-// ── Rate Limiting ────────────────────────────────────────────
+// ── Rate Limiting ──────────────────────────────────────────────
+// Security mechanism to prevent Brute Force or Denial of Service (DoS) attacks.
+// Limits general API routes to 5000 requests per 15 mins, and Login to 100.
+// ─────────────────────────────────────────────────────────────
 app.use("/api/", rateLimit({ windowMs: 15*60*1000, max: 5000, message: { error: "Too many requests" } }));
 app.use("/api/auth/login", rateLimit({ windowMs: 15*60*1000, max: 100, message: { error: "Too many login attempts" } }));
 
-// ── Database Pool ────────────────────────────────────────────
+// ── Database Pool ──────────────────────────────────────────────
+// Creates a connection pool to MySQL. A pool is more efficient than 
+// opening and closing connections for every single query, as it reuses 
+// a set of active connections (connectionLimit: 10).
+// ─────────────────────────────────────────────────────────────
 const db = mysql.createPool({
   host:            process.env.DB_HOST     || "localhost",
   user:            process.env.DB_USER     || "root",
@@ -66,7 +86,11 @@ const db = mysql.createPool({
   connectionLimit: 10
 });
 
-// ── Redis Cache (optional) ───────────────────────────────────
+// ── Redis Cache (optional) ─────────────────────────────────────
+// Attempts to connect to Redis for caching heavy queries (like the dashboard).
+// If Redis isn't running, it gracefully fails and sets 'cache = null',
+// meaning the app will just query MySQL directly without crashing.
+// ─────────────────────────────────────────────────────────────
 let cache = null;
 (async () => {
   try {
@@ -116,7 +140,14 @@ const URGENCY_COST = { CRITICAL: 4200, STANDARD: 2400, ECONOMY: 890 };
 
 /**
  * findBestRoute: Scans the Route Registry for the best match.
- * Falls back to static map if no route found.
+ * 
+ * CORE ALGORITHM EXPLANATION:
+ * This acts as the mechanical routing algorithm. It queries all active routes
+ * between an origin and destination. It filters out impossible routes 
+ * (e.g., -70C cannot travel by SEA or ROAD). Then, it calculates an 'adjusted_score' 
+ * based on base risk, carrier capacity (if a carrier is >85% full, risk goes up), 
+ * and urgency (Critical prioritizes Air, Economy prioritizes Sea/Road).
+ * The lowest score wins.
  */
 async function findBestRoute(origin_city, dest_city, temp_zone, urgency) {
   try {
@@ -132,18 +163,36 @@ async function findBestRoute(origin_city, dest_city, temp_zone, urgency) {
     const [all] = await db.query(q, params);
     const scored = [];
     for (const r of all) {
+      // ── ALGORITHM FILTERING ─────────────────────────────────
+      // Hard Constraints: Biologicals at -70C MUST fly (or use specialized rail).
+      // They cannot physically survive slow SEA or standard ROAD transit.
       if (temp_zone === "minus70C" && ["SEA","ROAD"].includes(r.transport_mode)) continue;
+      // Critical urgency shipments cannot use SEA freight due to time constraints.
       if (urgency === "CRITICAL" && r.transport_mode === "SEA") continue;
 
+      // ── RISK SCORING ────────────────────────────────────────
+      // Starts with the base risk of the predefined route.
       let score = parseFloat(r.risk_score);
+      
+      // Dynamic Risk Injection: If the carrier is currently operating 
+      // over 85% capacity, we penalize the route (add risk) due to congestion.
       if (r.capacity_pct > 85) score += 0.10;
+      
+      // Urgency Weighting: 
+      // If the client demands CRITICAL speed, we actively reward AIR transport 
+      // by lowering its relative risk score, bubbling it to the top of the list.
       if (urgency === "CRITICAL" && r.transport_mode === "AIR") score -= 0.05;
       else if (urgency === "ECONOMY") {
+        // Conversely, for ECONOMY, we reward slow ground/sea transport and penalize AIR.
         if (["SEA","ROAD"].includes(r.transport_mode)) score -= 0.15;
         if (r.transport_mode === "AIR") score += 0.05;
       }
+      
+      // Push the mutated route into the array for final sorting
       scored.push({ ...r, adjusted_score: parseFloat(score.toFixed(2)) });
     }
+    
+    // Final Sort: The lowest 'adjusted_score' is geometrically the most viable route
     scored.sort((a, b) => a.adjusted_score - b.adjusted_score);
     
     if (scored.length > 0) {
@@ -169,7 +218,11 @@ async function findBestRoute(origin_city, dest_city, temp_zone, urgency) {
   };
 }
 
-// ── Validation Schemas ───────────────────────────────────────
+// ── Validation Schemas (Joi) ───────────────────────────────────
+// Joi defines the strict shape and data types required for incoming API payloads.
+// If a user sends a string instead of an integer, or an invalid enum, 
+// Joi catches it before it ever touches the database, preventing SQL errors.
+// ─────────────────────────────────────────────────────────────
 const V = {
   login:      Joi.object({ email: Joi.string().email().required(), password: Joi.string().min(6).required() }),
   material:   Joi.object({ material_name: Joi.string().required(), sku: Joi.string().required(), temp_zone: Joi.string().valid("2_8C","minus20C","minus70C").required(), unit_of_measure: Joi.string().required(), description: Joi.string().allow("").optional() }),
@@ -193,7 +246,11 @@ function validate(schema) {
   };
 }
 
-// ── Auth Middleware ───────────────────────────────────────────
+// ── Auth Middleware ────────────────────────────────────────────
+// 'checkAuth' intersects incoming requests. It looks for the 'Authorization' 
+// header containing the JWT (JSON Web Token). If the token is valid, it 
+// decodes it and attaches the user data to 'req.user' for the route to use.
+// ─────────────────────────────────────────────────────────────
 function checkAuth(req, res, next) {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ error: "Login required" });
@@ -223,7 +280,11 @@ async function auditLog(userId, tenantId, action, entity, entityId, before, afte
   } catch {}
 }
 
-// ── Socket.io ─────────────────────────────────────────────────
+// ── Socket.io Events ───────────────────────────────────────────
+// Handlers for clients connecting to 'rooms'. Ops staff join 'ops_room' 
+// to see global alerts, while clients join specific 'tenant_id' rooms 
+// to only see alerts specific to their company's shipments.
+// ─────────────────────────────────────────────────────────────
 io.on("connection", socket => {
   socket.on("join_ops",    ()   => socket.join("ops_room"));
   socket.on("join_tenant", (id) => socket.join("tenant_" + id));
@@ -232,7 +293,12 @@ io.on("connection", socket => {
 function alertOps(data)      { io.to("ops_room").emit("alert", { ...data, timestamp: new Date().toISOString() }); }
 function alertTenant(id, data){ io.to("tenant_" + id).emit("alert", { ...data, timestamp: new Date().toISOString() }); }
 
-// ── Cron: Daily compliance check at 8 AM ─────────────────────
+// ── Cron Jobs (Automated Background Tasks) ─────────────────────
+// node-cron allows scheduling code to run automatically at specific times.
+// 
+// Job 1: Daily compliance check at 8 AM. Queries the v_expiring_compliance view.
+// If documents expire within 3 days, it creates a CRITICAL database alert.
+// ─────────────────────────────────────────────────────────────
 cron.schedule("0 8 * * *", async () => {
   try {
     const [docs] = await db.query("SELECT * FROM v_expiring_compliance");
@@ -308,10 +374,11 @@ cron.schedule("*/30 * * * *", async () => {
 
 
 // ================================================================
-//  ROUTES
+//  REST API ROUTES
+//  Defines the endpoints the React Client communicates with.
 // ================================================================
 
-// ── AUTH ──────────────────────────────────────────────────────
+// ── AUTHENTICATION API ──────────────────────────────────────────
 app.post("/api/auth/login", validate(V.login), async (req, res) => {
   const { email, password } = req.body;
   
@@ -363,7 +430,9 @@ app.post("/api/auth/register", validate(Joi.object({
   } finally { conn.release(); }
 });
 
-// ── TENANTS ───────────────────────────────────────────────────
+// ── TENANT (CLIENT COMPANY) API ────────────────────────────────
+// Manages the creation and retrieval of the isolated workspaces.
+// ─────────────────────────────────────────────────────────────
 app.get("/api/tenants", checkAuth, opsOnly, async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -386,7 +455,10 @@ app.post("/api/tenants", checkAuth, opsOnly, validate(V.tenant), async (req, res
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── USERS ─────────────────────────────────────────────────────
+// ── USERS API ──────────────────────────────────────────────────
+// Manages accounts. When creating a user, the password is encrypted
+// via bcrypt.hash before insertion.
+// ─────────────────────────────────────────────────────────────
 app.get("/api/users", checkAuth, opsOnly, async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -412,7 +484,11 @@ app.post("/api/users", checkAuth, opsOnly, validate(V.user), async (req, res) =>
   }
 });
 
-// ── MATERIALS ─────────────────────────────────────────────────
+// ── MATERIALS API ──────────────────────────────────────────────
+// Catalog of pharmaceutical/biological items.
+// GET route utilizes GROUP_CONCAT to merge multiple certifications 
+// into a single string for easier frontend rendering.
+// ─────────────────────────────────────────────────────────────
 app.get("/api/materials", checkAuth, async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -447,7 +523,9 @@ app.post("/api/materials", checkAuth, opsOnly, validate(V.material), async (req,
   }
 });
 
-// ── WAREHOUSES ────────────────────────────────────────────────
+// ── WAREHOUSES API ─────────────────────────────────────────────
+// Physical hubs. The lat/long data stored here is used by the client map.
+// ─────────────────────────────────────────────────────────────
 app.get("/api/warehouses", checkAuth, async (req, res) => {
   try {
     const [rows] = await db.query("SELECT * FROM warehouses ORDER BY name");
@@ -466,7 +544,9 @@ app.post("/api/warehouses", checkAuth, opsOnly, validate(V.warehouse), async (re
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── CARRIERS ──────────────────────────────────────────────────
+// ── CARRIERS API ───────────────────────────────────────────────
+// Third-party logistics (3PL) providers (e.g. FedEx, Maersk).
+// ─────────────────────────────────────────────────────────────
 app.get("/api/carriers", checkAuth, async (req, res) => {
   try {
     const [rows] = await db.query("SELECT * FROM carriers WHERE is_active=1 ORDER BY carrier_name");
@@ -485,7 +565,9 @@ app.post("/api/carriers", checkAuth, opsOnly, validate(V.carrier), async (req, r
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── ROUTES ────────────────────────────────────────────────────
+// ── ROUTES API ─────────────────────────────────────────────────
+// Pre-defined shipping lanes between origin and destination cities.
+// ─────────────────────────────────────────────────────────────
 app.get("/api/routes", checkAuth, async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -553,7 +635,12 @@ app.post("/api/routes/evaluate", checkAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── PROCUREMENT ───────────────────────────────────────────────
+// ── PROCUREMENT API ────────────────────────────────────────────
+// Handles client requests for materials. 
+// Uses transactions implicitly through status states.
+// When Ops 'APPROVES' a request, this route contains the complex logic
+// to deduct inventory immediately and instantiate a Shipment Order.
+// ─────────────────────────────────────────────────────────────
 app.get("/api/procurement", checkAuth, scopeTenant, async (req, res) => {
   try {
     let q = `SELECT pr.*, rm.material_name, rm.sku, t.company_name, u.full_name AS requested_by_name
@@ -573,6 +660,10 @@ app.post("/api/procurement", checkAuth, scopeTenant, validate(V.procurement), as
   const { material_id, quantity_requested, temp_zone, urgency, required_by_date, delivery_address, notes } = req.body;
   const tenantId = req.myTenantId || req.body.tenant_id;
   try {
+    // ── INVENTORY GUARD ──────────────────────────────────────────
+    // Before allowing a client to log a formal request, we sum up the TOTAL physical 
+    // inventory across ALL warehouses globally. If they ask for 5000 units but we 
+    // only have 3000, we instantly block the request with a descriptive 400 error.
     const [[stock]] = await db.query("SELECT COALESCE(SUM(quantity_on_hand),0) AS avail FROM inventory WHERE material_id=?", [material_id]);
     if (stock.avail < quantity_requested)
       return res.status(400).json({ error: `Only ${stock.avail} units available`, available: stock.avail });
@@ -594,12 +685,17 @@ app.patch("/api/procurement/:id/review", checkAuth, opsOnly, async (req, res) =>
     const [[pr]] = await db.query("SELECT * FROM procurement_requests WHERE request_id=?", [req.params.id]);
     if (!pr) return res.status(404).json({ error: "Request not found" });
 
-    // Idempotency guard
+    // ── IDEMPOTENCY GUARD ────────────────────────────────────────
+    // Prevents "Double Submit" bugs. If a manager accidentally double-clicks 
+    // the "Approve" button, the system checks if it is already fulfilled/rejected.
     if (["FULFILLED","REJECTED"].includes(pr.status)) {
       return res.status(409).json({ error: `Request is already ${pr.status}` });
     }
 
     if (status === "APPROVED") {
+      // ── DOUBLE-INSTANTIATION GUARD ──────────────────────────────
+      // To strictly maintain the One-to-One mapping, we verify a shipment 
+      // order hasn't already been created for this specific request ID.
       const [[existing]] = await db.query("SELECT order_id FROM shipment_orders WHERE procurement_request_id=?", [pr.request_id]);
       if (existing) return res.status(409).json({ error: `Shipment SHP-${existing.order_id} already exists` });
       
@@ -612,16 +708,22 @@ app.patch("/api/procurement/:id/review", checkAuth, opsOnly, async (req, res) =>
 
       const pricing = await findBestRoute(origin_city, pr.delivery_address, pr.temp_zone, pr.urgency);
 
-      // Stock Guard for Procurement Approval
+      // ── WAREHOUSE-LEVEL INVENTORY DEDUCTION ──────────────────────
+      // This is a critical business logic step. When creating the Shipment,
+      // Ops selects a specific generic origin warehouse. We MUST deduct 
+      // the inventory *immediately* upon approval so it cannot be double-booked 
+      // by another concurrent PRQ.
       if (origin_warehouse_id) {
         const [[stock]] = await db.query(
           "SELECT quantity_on_hand FROM inventory WHERE material_id=? AND warehouse_id=?",
           [pr.material_id, origin_warehouse_id]
         );
+        // Fail if the specific hub does not have enough buffer
         if (!stock || stock.quantity_on_hand < pr.quantity_requested) {
           return res.status(400).json({ error: `Selected warehouse has insufficient stock to fulfill this request (Available: ${stock?.quantity_on_hand || 0})` });
         }
         
+        // Execute the ledger deduction mechanically
         await db.query(
           "UPDATE inventory SET quantity_on_hand = quantity_on_hand - ? WHERE material_id=? AND warehouse_id=?",
           [pr.quantity_requested, pr.material_id, origin_warehouse_id]
@@ -655,7 +757,11 @@ app.patch("/api/procurement/:id/review", checkAuth, opsOnly, async (req, res) =>
 });
 
 
-// ── SHIPMENTS ─────────────────────────────────────────────────
+// ── SHIPMENTS API ──────────────────────────────────────────────
+// Core entity of CryoChain. 
+// The POST route uses the findBestRoute algorithm to automatically
+// associate the optimal carrier to the shipment based on urgency/temp.
+// ─────────────────────────────────────────────────────────────
 app.get("/api/orders", checkAuth, scopeTenant, async (req, res) => {
   try {
     let q = "SELECT * FROM v_tenant_shipments";
@@ -796,28 +902,49 @@ app.get("/api/orders/:id/pdf", checkAuth, scopeTenant, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── TEMPERATURE ────────────────────────────────────────────────
+// ── TEMPERATURE IOT API ────────────────────────────────────────
+// Receives simulated or real sensor data (celsius) for active shipments.
+// If the temperature exceeds the material's 'temp_zone' boundary,
+// it is flagged as an 'excursion' and alerts are fired immediately.
+// ─────────────────────────────────────────────────────────────
 app.post("/api/temperature", checkAuth, validate(V.tempLog), async (req, res) => {
   const { order_id, sensor_id, temperature_celsius, location } = req.body;
   try {
+    // ── 1. CONTEXT LOOKUP ────────────────────────────────────
+    // Pull the allowed temperature boundary for this specific shipment.
     const [[order]] = await db.query("SELECT temp_zone, tenant_id FROM shipment_orders WHERE order_id=?", [order_id]);
     if (!order) return res.status(404).json({ error: "Shipment not found" });
 
+    // ── 2. EXCURSION EVALUATION ──────────────────────────────
+    // Compare the raw celsius reading against the mathematical bounds defined
+    // globally in the TEMP_RANGES dictionary (e.g., 2_8C = {min: 2, max: 8}).
     const range     = TEMP_RANGES[order.temp_zone];
     const excursion = temperature_celsius < range.min || temperature_celsius > range.max;
 
+    // ── 3. LEDGER COMMIT ─────────────────────────────────────
+    // Keep a permanent immutable record of this ping, regardless of if it failed.
     await db.query("INSERT INTO temperature_logs (order_id, sensor_id, temperature_celsius, location, is_excursion) VALUES (?,?,?,?,?)",
       [order_id, sensor_id || "MANUAL", temperature_celsius, location, excursion]);
 
+    // ── 4. INCIDENT ESCALATION WORKFLOW ──────────────────────
     if (excursion) {
+      // Step A: Mutate the master shipment status to visually flag it 'AT_RISK' on dashboards.
       await db.query("UPDATE shipment_orders SET status='AT_RISK' WHERE order_id=? AND status='IN_TRANSIT'", [order_id]);
+      
       const msg = `Excursion on SHP-${order_id}: ${temperature_celsius}°C at ${location} (allowed ${range.min}–${range.max}°C)`;
+      
+      // Step B: Write the alert to the database for historical persistence.
       await db.query("INSERT INTO alerts (order_id, tenant_id, alert_type, severity, message) VALUES (?,?,?,?,?)", [order_id, order.tenant_id, "TEMP_EXCURSION", "CRITICAL", msg]);
+      
+      // Step C: Blast the alert down the open Socket.io pipelines to all connected Ops & Client staff.
       alertOps({ type: "TEMP_EXCURSION", severity: "CRITICAL", message: msg });
       alertTenant(order.tenant_id, { type: "TEMP_EXCURSION", severity: "CRITICAL", message: msg });
 
+      // Step D: Simulate an email dispatch to the client's admin user so they are notified offline.
       const [[client]] = await db.query("SELECT email FROM users WHERE tenant_id=? AND role='client_admin' LIMIT 1", [order.tenant_id]);
       if (client) await sendEmail(client.email, `Temperature Excursion — SHP-${order_id}`, `<h2>Excursion Alert</h2><p>${msg}</p>`);
+      
+      // Step E: Invalidate the Redis cache so the Ops dashboard immediately recalculates KPIs.
       await cacheDel("ops_dashboard");
     }
 
@@ -1022,7 +1149,7 @@ app.get("/api/dashboard/client", checkAuth, scopeTenant, async (req, res) => {
 
 // ── Start ──────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`\n🚀 CryoChain running on port ${PORT}`);
   console.log("────────────────────────────────────");
   console.log("socket.io  • node-cron  • multer");

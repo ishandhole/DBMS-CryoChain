@@ -1,9 +1,15 @@
 #!/bin/bash
 # ================================================================
-#  CryoChain — Start / Stop Script
+#  CryoChain — Start / Stop Script (Bash Utility)
+#
+#  This script orchestrates the entire application environment.
+#  Instead of manually opening 3 terminal tabs to run the backend,
+#  frontend, and database separately, this script handles background 
+#  spawning (using 'nohup') and process management (PID files).
+#
 #  Usage (run from the project1 folder):
 #    ./cryochain.sh start   → starts MySQL + server (5001) + client (3000)
-#    ./cryochain.sh stop    → stops client, server, and MySQL
+#    ./cryochain.sh stop    → gracefully stops client, server, and MySQL
 #    ./cryochain.sh restart → stop then start everything
 #    ./cryochain.sh status  → shows running status of all services
 # ================================================================
@@ -23,6 +29,8 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 mkdir -p "$PID_DIR"
+LOCAL_IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || echo "localhost")
+
 
 # ── MySQL helpers ────────────────────────────────────────────────
 mysql_running() {
@@ -72,7 +80,7 @@ start() {
     cd "$SCRIPT_DIR/server"
     nohup npm run dev > "$SERVER_LOG" 2>&1 &
     echo $! > "$SERVER_PID"
-    echo -e "  Server: ${GREEN}✅ Started on http://localhost:5001 (PID $!)${NC}"
+    echo -e "  Server: ${GREEN}✅ Started on http://$LOCAL_IP:5001 (PID $!)${NC}"
     cd "$SCRIPT_DIR"
   fi
 
@@ -83,13 +91,13 @@ start() {
     cd "$SCRIPT_DIR/client"
     BROWSER=none nohup npm start > "$CLIENT_LOG" 2>&1 &
     echo $! > "$CLIENT_PID"
-    echo -e "  Client: ${GREEN}✅ Started on http://localhost:3000 (PID $!)${NC}"
+    echo -e "  Client: ${GREEN}✅ Started on http://$LOCAL_IP:3000 (PID $!)${NC}"
     cd "$SCRIPT_DIR"
   fi
 
   echo -e "${CYAN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo -e "  Logs:   ${YELLOW}.pids/server.log${NC} | ${YELLOW}.pids/client.log${NC}"
-  echo -e "  App:    ${GREEN}http://localhost:3000${NC}"
+  echo -e "  App:    ${GREEN}http://$LOCAL_IP:3000${NC}"
   echo -e "  Login:  ${GREEN}admin@cryochain.io${NC} / ${GREEN}Admin@1234${NC}"
   echo -e "${CYAN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
@@ -149,13 +157,13 @@ status() {
   fi
 
   if [ -f "$SERVER_PID" ] && kill -0 "$(cat "$SERVER_PID")" 2>/dev/null; then
-    echo -e "  Server: ${GREEN}● RUNNING${NC} (PID $(cat "$SERVER_PID")) → http://localhost:5001"
+    echo -e "  Server: ${GREEN}● RUNNING${NC} (PID $(cat "$SERVER_PID")) → http://$LOCAL_IP:5001"
   else
     echo -e "  Server: ${RED}○ STOPPED${NC}"
   fi
 
   if [ -f "$CLIENT_PID" ] && kill -0 "$(cat "$CLIENT_PID")" 2>/dev/null; then
-    echo -e "  Client: ${GREEN}● RUNNING${NC} (PID $(cat "$CLIENT_PID")) → http://localhost:3000"
+    echo -e "  Client: ${GREEN}● RUNNING${NC} (PID $(cat "$CLIENT_PID")) → http://$LOCAL_IP:3000"
   else
     echo -e "  Client: ${RED}○ STOPPED${NC}"
   fi

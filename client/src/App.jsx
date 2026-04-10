@@ -1,7 +1,13 @@
 // ================================================================
 //  src/App.jsx — CryoChain UI  (Inter font · clean dark theme)
-//  All data live from MySQL. Zero hardcoded values.
-//  New: Toast system · Search · Admin Setup page · Empty states
+//
+//  This is the massive monolithic frontend file containing all React 
+//  components. It is divided into:
+//  1. Shared UI Components (Buttons, Inputs, Cards)
+//  2. Pages (Login, Dashboard, Procurement, Maps)
+//  3. Main Routing App (The core navigation logic)
+//
+//  All data is fetched live from the Express MySQL backend.
 // ================================================================
 import { useState, useRef, useEffect } from "react";
 import * as api from "./api";
@@ -239,7 +245,11 @@ function AlertBanner({ alerts, onDismiss, onAction }) {
 //  PAGES
 // ================================================================
 
-// ── Login ─────────────────────────────────────────────────────
+// ── Login / Authentication Page ──────────────────────────────────
+// First screen the user sees. It connects to the /api/auth/login route.
+// On success, the API returns a JWT and user data which the 'useAuth'
+// hook saves to localStorage.
+// ───────────────────────────────────────────────────────────────
 function LoginPage({ onLogin, onGoSignup }) {
   const { form, set } = useForm({ email:"", password:"" });
   const [loading, setLoading] = useState(false);
@@ -334,12 +344,23 @@ function SignupPage({ onBackToLogin }) {
   );
 }
 
-// ── Control Tower (Ops Dashboard) ────────────────────────────
+// ── Control Tower (Ops Dashboard) ──────────────────────────────
+// The primary view for Ops Staff. Aggregates data from multiple endpoints
+// to show Active Flow, KPIs, Live GPS Map links, and low inventory warnings.
+// It uses setInterval to refetch its data every 5 seconds to feel "live".
+// ───────────────────────────────────────────────────────────────
 function ControlTower({ user, setPage, connected, onStockAction }) {
   const { data, loading, refetch } = useFetch(api.dashboard.getOps);
   const [lastSync, setLastSync] = useState(new Date());
 
-  // Auto-refresh every 5 seconds for real-time feel
+  // ── POLYFILL REAL-TIME ENGINE (Short-Polling) ───────────────
+  // While Socket.io handles instant push notifications (like temperature alerts),
+  // updating complex aggregated KPIs (like "Total Shipped Value" or 
+  // "Pending Procurement Requests") via socket payloads is computationally expensive.
+  // Instead, the Control Tower mounts a `useEffect` hook that registers a `setInterval`.
+  // Every 5000ms (5 seconds), it silently triggers the Axios API wrapper `refetch()` 
+  // to pull the latest dashboard numbers, creating a "live" feel without WebSocket overhead.
+  // The `clearInterval` cleanup function prevents severe memory leaks when unmounting.
   useEffect(() => {
     const t = setInterval(() => {
       refetch().then(() => setLastSync(new Date()));
@@ -498,7 +519,11 @@ function PipeConnector() {
   );
 }
 
-// ── Procurement ───────────────────────────────────────────────
+// ── Procurement Page ───────────────────────────────────────────
+// Where Client Users request materials, and Ops Users approve them.
+// When an Ops User approves a request, the API natively deducts inventory
+// and creates a Shipment Order.
+// ───────────────────────────────────────────────────────────────
 function ProcurementPage({ isOps, toast, onUpdate }) {
   const { data, loading, error, refetch } = useFetch(api.procurement.getAll);
   const { data: mats }    = useFetch(api.materials.getAll);
@@ -648,7 +673,11 @@ function ProcurementPage({ isOps, toast, onUpdate }) {
   );
 }
 
-// ── Shipments ─────────────────────────────────────────────────
+// ── Shipments Page ─────────────────────────────────────────────
+// The control bridge for logistics. Ops Staff can MANUALLY update the 
+// status or GPS coordinates (lat/lng) of a shipment here. When updated,
+// the Map will instantly shift.
+// ───────────────────────────────────────────────────────────────
 function ShipmentsPage({ isOps, toast, onUpdate }) {
   const { data, loading, error, refetch } = useFetch(api.orders.getAll);
   const { data: tenants }   = useFetch(api.tenants.getAll);
@@ -819,6 +848,11 @@ function ShipmentsPage({ isOps, toast, onUpdate }) {
 }
 
 // ── Inventory ─────────────────────────────────────────────────
+// ── Inventory Page ─────────────────────────────────────────────
+// Shows stock levels for all raw materials across all warehouses.
+// Displays warnings for low stock based on 'reorder_threshold'.
+// Ops can perform manual +/- adjustments to fix stock discrepancies.
+// ───────────────────────────────────────────────────────────────
 function InventoryPage({ toast, highlight, onHighlightClear }) {
   const { data, loading, error, refetch } = useFetch(api.inventory.getAll);
   const { data: alerts, refetch: refetchAlerts, loading: loadingAlerts } = useFetch(api.inventory.restockAlerts);
@@ -1026,6 +1060,11 @@ function InventoryPage({ toast, highlight, onHighlightClear }) {
 }
 
 // ── Temperature Monitor ───────────────────────────────────────
+// ── Temperature Monitor Page ───────────────────────────────────
+// Simulates IoT continuous sensors. Renders historical charts using 
+// 'recharts'. The frontend loops through past logs to build the chart, 
+// and flags dangerous 'excursions' in red.
+// ───────────────────────────────────────────────────────────────
 function TempMonitorPage({ isOps, shipments, toast }) {
   const [selectedId, setSelectedId] = useState("");
   const [showLog, setShowLog] = useState(false);
@@ -1132,6 +1171,10 @@ function TempMonitorPage({ isOps, shipments, toast }) {
 }
 
 // ── Compliance ────────────────────────────────────────────────
+// ── Compliance Page ────────────────────────────────────────────
+// Document management. Allows uploading PDFs using the 'multer' backend.
+// It shows expiration dates and highlights documents that expire within 14 days.
+// ───────────────────────────────────────────────────────────────
 function CompliancePage({ isOps, shipments, toast }) {
   const [selectedId, setSelectedId] = useState("");
   const [showUpload, setShowUpload] = useState(false);
@@ -1312,10 +1355,26 @@ function RoutePlannerPage() {
 }
 
 // ── Live Map ──────────────────────────────────────────────────
+// ── Live Map Page ──────────────────────────────────────────────
+// Uses Leaflet (react-leaflet) to render an interactive world map.
+// Nodes are rendered for warehouses, and moving 'Shipments' are 
+// rendered at their specific 'current_lat' and 'current_lng' from the DB.
+// The real-time socket ensures ships instantly hop when updated.
+// ───────────────────────────────────────────────────────────────
 function LiveMapPage({ shipments }) {
   const blobRef = useRef(null);
   const [url, setUrl] = useState("");
 
+  // ── DATA NORMALIZATION & COMPILATION ──────────────────────────
+  // The backend sends raw row data from the `v_tenant_shipments` SQL view.
+  // This `useEffect` acts as a frontend Data Transformer. It maps over the
+  // raw array and coerces nulls, matches hex colors based on ENUM status keys,
+  // and intelligently falls back on `origin_lat`/`origin_lng` if a newly minted
+  // shipment doesn't have a specific `current_lat` yet. This prevents the map
+  // from crashing due to null coordinates.
+  // 
+  // It only runs when the `shipments` prop array updates, which happens automatically
+  // due to the Socket.io listeners in the parent container.
   useEffect(() => {
     const all = (shipments||[]);
     const mapData = all.map(s => ({
@@ -1749,6 +1808,11 @@ function RouteSetupTab({ items, refetch, toast, carriers, warehouses }) {
 }
 
 // ── Admin Setup Page ──────────────────────────────────────────
+// ── Admin Setup Page ───────────────────────────────────────────
+// A modular CRUD interface. Provides tabs for managing underlying Master Data:
+// Tenants, Users, Materials, Warehouses, Carriers, and Routes.
+// These records MUST exist before Shipments can be generated.
+// ───────────────────────────────────────────────────────────────
 function AdminSetupPage({ toast }) {
   const [tab, setTab] = useState("tenants");
 

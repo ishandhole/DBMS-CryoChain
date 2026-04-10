@@ -1,12 +1,20 @@
 // ================================================================
-//  src/hooks.js — Reusable React hooks
+//  src/hooks.js — Reusable React Custom Hooks
+//
+//  React "Hooks" allow us to extract component logic into reusable functions.
+//  This keeps our React components clean, focused on UI, and prevents
+//  copy-pasting the same fetching/loading/error logic everywhere.
 // ================================================================
 import { useState, useEffect, useCallback, useRef } from "react";
 import { io } from "socket.io-client";
 import { auth } from "./api";
 
-// ── useFetch: loads data on mount ────────────────────────────
+// ── useFetch: Auto-loader Hook ──────────────────────────────────
+// Used for HTTP GET requests. Automatically runs the provided API function
+// when the component mounts. Manages internal state for the data, a loading
+// boolean (to show spinners), and an error string.
 // Usage: const { data, loading, error, refetch } = useFetch(api.orders.getAll)
+// ────────────────────────────────────────────────────────────────
 export function useFetch(fn, deps = []) {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,8 +32,12 @@ export function useFetch(fn, deps = []) {
   return { data, loading, error, refetch: run };
 }
 
-// ── useSubmit: one-shot mutations ─────────────────────────────
-// Usage: const { run, loading, error, success } = useSubmit(api.orders.create)
+// ── useSubmit: Mutation Hook ────────────────────────────────────
+// Used for HTTP POST/PATCH/DELETE requests. Unlike useFetch, this doesn't
+// run automatically. It gives the component a `run` trigger function to 
+// call when a user clicks a button or submits a form. Includes advanced
+// error unpacking (gracefully handling Joi validation errors from the server).
+// ────────────────────────────────────────────────────────────────
 export function useSubmit(fn) {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
@@ -38,6 +50,11 @@ export function useSubmit(fn) {
       setSuccess(true);
       return result;
     } catch (e) {
+      // ── ADVANCED ERROR UNPACKING ───────────────────────────────────
+      // If the Node.js backend throws a 400 error because of Joi validation
+      // (e.g., { details: ["\"email\" must be a valid email"] }), we try to 
+      // extract that deeply nested array and join it into a human-readable string.
+      // If `details` doesn't exist, we fall back to a generic API error message.
       const msg = e.response?.data?.details?.join(", ") || e.response?.data?.error || e.message || "Request failed";
       setError(msg);
       throw e;
@@ -47,7 +64,10 @@ export function useSubmit(fn) {
   return { run, loading, error, success, clearError: () => setError(null) };
 }
 
-// ── useAuth: manages login session ────────────────────────────
+// ── useAuth: Session Manager ────────────────────────────────────
+// Extracts security and routing logic. Provides boolean flags (isOps, isClient)
+// that the App.jsx router uses to determine which dashboards the user is allowed to see.
+// ────────────────────────────────────────────────────────────────
 export function useAuth() {
   const [user, setUser] = useState(() => auth.getUser());
 
@@ -66,7 +86,12 @@ export function useAuth() {
   return { user, login, logout, isOps, isClient, isAdmin };
 }
 
-// ── useSocket: real-time alerts ───────────────────────────────
+// ── useSocket: Real-Time Engine ─────────────────────────────────
+// Establishes a persistent WebSocket connection to the Node.js backend.
+// Joins specific encrypted 'rooms' based on the user's role/tenant ID.
+// Whenever the server emits an "alert" event, this hook catches it
+// and prepends it to the `liveAlerts` array, rendering the top banner instantly.
+// ────────────────────────────────────────────────────────────────
 export function useSocket(user) {
   const [liveAlerts, setLiveAlerts] = useState([]);
   const [connected,  setConnected]  = useState(false);
@@ -93,7 +118,11 @@ export function useSocket(user) {
   return { liveAlerts, connected, dismissAlert: () => setLiveAlerts(p => p.slice(1)), clearAlerts: () => setLiveAlerts([]) };
 }
 
-// ── useForm: controlled form state ────────────────────────────
+// ── useForm: Controlled Inputs Hook ─────────────────────────────
+// React requires inputs to be "controlled" (bound to state). This hook
+// eliminates the boilerplate of writing `onChange` handlers for every single input field.
+// Usage: <input value={form.email} onChange={set("email")} />
+// ────────────────────────────────────────────────────────────────
 export function useForm(initial) {
   const [form, setForm] = useState(initial);
   const set   = field => e => setForm(p => ({ ...p, [field]: e.target.value }));
@@ -102,7 +131,10 @@ export function useForm(initial) {
   return { form, set, reset, patch, setForm };
 }
 
-// ── useToast: notification toasts ─────────────────────────────
+// ── useToast: Notification System ───────────────────────────────
+// Manages the array of floating success/error messages at the bottom right.
+// Automatically filters them out after 4000ms (4 seconds).
+// ────────────────────────────────────────────────────────────────
 export function useToast() {
   const [toasts, setToasts] = useState([]);
 

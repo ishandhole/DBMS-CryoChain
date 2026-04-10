@@ -1,3 +1,12 @@
+// ================================================================
+//  restore_inventory.js (Data Repair Script)
+//
+//  This script is a maintenance utility. If the database ever gets
+//  corrupted where inventory counts are wrong, this script queries the 
+//  master ledger (`shipment_orders`) and recalculates the proper stock
+//  deductions for every historical order.
+// ================================================================
+
 const mysql = require("mysql2/promise");
 require("dotenv").config();
 

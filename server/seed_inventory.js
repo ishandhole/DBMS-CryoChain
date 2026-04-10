@@ -1,3 +1,14 @@
+// ================================================================
+//  seed_inventory.js (Database Seeder)
+//
+//  This script solves a "Cold Start" problem in the DBMS.
+//  When a new material is added, it needs to have an inventory record
+//  in the database for every warehouse, even if that stock is 0.
+//  This script iterates through all raw_materials and warehouses,
+//  performing an INSERT ... ON DUPLICATE KEY UPDATE to ensure every
+//  possible combination exists in the `inventory` table.
+// ================================================================
+
 const mysql = require("mysql2/promise");
 require("dotenv").config();
 

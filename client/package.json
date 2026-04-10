@@ -6,7 +6,7 @@
     "react-scripts": "5.0.1", "socket.io-client": "^4.6.2",
     "web-vitals": "^2.1.4"
   },
-  "scripts": { "start": "react-scripts start", "build": "react-scripts build" },
+  "scripts": { "start": "HOST=0.0.0.0 react-scripts start", "build": "react-scripts build" },
   "browserslist": { "production": [">0.2%","not dead"], "development": ["last 1 chrome version"] },
   "eslintConfig": {
     "extends": [
