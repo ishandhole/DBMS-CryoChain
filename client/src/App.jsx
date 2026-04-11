@@ -1402,11 +1402,17 @@ function LiveMapPage({ shipments }) {
 <style>
   body{margin:0;background:#09090b}
   #map{height:100vh}
-  .panel{position:absolute;top:16px;left:16px;z-index:1000;background:rgba(12,12,18,.97);border:1px solid #2e2e38;border-radius:12px;padding:16px;min-width:250px;max-width:280px;color:#f4f4f5;font-family:system-ui,sans-serif;font-size:12px;max-height:calc(100vh - 40px);overflow-y:auto}
-  .panel-title{color:#3b82f6;font-weight:700;letter-spacing:.06em;margin-bottom:12px;font-size:13px}
-  .ship-row{padding:9px 0;border-bottom:1px solid #2e2e3820;cursor:pointer}
-  .ship-row:hover{opacity:.8}
-  .legend{position:absolute;bottom:24px;left:16px;z-index:1000;background:rgba(12,12,18,.97);border:1px solid #2e2e38;border-radius:10px;padding:12px;color:#f4f4f5;font-family:system-ui,sans-serif;font-size:11px}
+  .panel{position:absolute;top:16px;left:16px;z-index:1000;background:rgba(12,12,18,0.45);backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:14px;min-width:210px;max-width:230px;color:#f4f4f5;font-family:system-ui,sans-serif;font-size:11px;max-height:calc(100vh - 40px);display:flex;flex-direction:column;box-shadow:0 8px 32px 0 rgba(0,0,0,0.6)}
+  .panel-title{color:#3b82f6;font-weight:700;letter-spacing:.06em;margin-bottom:10px;font-size:11.5px;flex-shrink:0}
+  .search-box{width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:7px 10px;color:white;font-size:11px;margin-bottom:12px;outline:none;flex-shrink:0;box-sizing:border-box}
+  .search-box:focus{border-color:#3b82f6;background:rgba(255,255,255,0.07)}
+  #list{overflow-y:auto;flex-grow:1}
+  #list::-webkit-scrollbar{width:3px}
+  #list::-webkit-scrollbar-track{background:transparent}
+  #list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:10px}
+  .ship-row{padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer}
+  .ship-row:hover{background:rgba(255,255,255,0.04)}
+  .legend{position:absolute;bottom:24px;right:16px;z-index:1000;background:rgba(12,12,18,0.45);backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px;color:#f4f4f5;font-family:system-ui,sans-serif;font-size:11px;box-shadow:0 8px 32px 0 rgba(0,0,0,0.6)}
   .leg-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
   .leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
   @keyframes pulse {
@@ -1419,7 +1425,8 @@ function LiveMapPage({ shipments }) {
 </head><body>
 <div id="map"></div>
 <div class="panel">
-  <div class="panel-title">◈ ALL SHIPMENTS (${all.length})</div>
+  <div id="panelHeader" class="panel-title">◈ ALL SHIPMENTS (${all.length})</div>
+  <input type="text" id="shipSearch" class="search-box" placeholder="Search ID or Client..."/>
   <div id="list"></div>
 </div>
 <div class="legend">
@@ -1435,6 +1442,8 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { a
 
 var ships = ${JSON.stringify(mapData)};
 var list = document.getElementById('list');
+var searchInput = document.getElementById('shipSearch');
+var panelHeader = document.getElementById('panelHeader');
 var markers = {};
 
 ships.forEach(function(s) {
@@ -1481,6 +1490,18 @@ if (ships.length) {
   var bounds = ships.filter(s => s.lat || s.origin_lat).map(s => [s.lat || s.origin_lat, s.lng || s.origin_lng]);
   if (bounds.length) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 7 });
 }
+
+searchInput.onkeyup = function() {
+  var val = this.value.toLowerCase();
+  var rows = document.querySelectorAll('.ship-row');
+  var visibleCount = 0;
+  rows.forEach(function(row) {
+    var text = row.innerText.toLowerCase();
+    if (text.indexOf(val) > -1) { row.style.display = ''; visibleCount++; }
+    else { row.style.display = 'none'; }
+  });
+  panelHeader.innerText = '◈ ALL SHIPMENTS (' + visibleCount + ')';
+};
 </script></body></html>`;
 
     const blob = new Blob([html], { type:"text/html" });

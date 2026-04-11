@@ -176,7 +176,7 @@ async function findBestRoute(origin_city, dest_city, temp_zone, urgency) {
       
       // Dynamic Risk Injection: If the carrier is currently operating 
       // over 85% capacity, we penalize the route (add risk) due to congestion.
-      if (r.capacity_pct > 85) score += 0.10;
+      if (Number(r.capacity_pct) > 85) score += 0.10;
       
       // Urgency Weighting: 
       // If the client demands CRITICAL speed, we actively reward AIR transport 
@@ -338,7 +338,7 @@ cron.schedule("*/30 * * * *", async () => {
       FROM inventory i
       JOIN raw_materials rm ON i.material_id = rm.material_id
       JOIN warehouses w ON i.warehouse_id = w.warehouse_id
-      WHERE i.quantity_on_hand < i.reorder_threshold AND rm.is_active = 1
+      WHERE Number(i.quantity_on_hand) < Number(i.reorder_threshold) AND rm.is_active = 1
     `);
     if (!lowItems.length) return;
 
@@ -665,7 +665,7 @@ app.post("/api/procurement", checkAuth, scopeTenant, validate(V.procurement), as
     // inventory across ALL warehouses globally. If they ask for 5000 units but we 
     // only have 3000, we instantly block the request with a descriptive 400 error.
     const [[stock]] = await db.query("SELECT COALESCE(SUM(quantity_on_hand),0) AS avail FROM inventory WHERE material_id=?", [material_id]);
-    if (stock.avail < quantity_requested)
+    if (Number(stock.avail) < Number(quantity_requested))
       return res.status(400).json({ error: `Only ${stock.avail} units available`, available: stock.avail });
 
     const [result] = await db.query(
@@ -719,7 +719,7 @@ app.patch("/api/procurement/:id/review", checkAuth, opsOnly, async (req, res) =>
           [pr.material_id, origin_warehouse_id]
         );
         // Fail if the specific hub does not have enough buffer
-        if (!stock || stock.quantity_on_hand < pr.quantity_requested) {
+        if (!stock || Number(stock.quantity_on_hand) < Number(pr.quantity_requested)) {
           return res.status(400).json({ error: `Selected warehouse has insufficient stock to fulfill this request (Available: ${stock?.quantity_on_hand || 0})` });
         }
         
@@ -792,7 +792,7 @@ app.post("/api/orders", checkAuth, opsOnly, validate(V.shipment), async (req, re
         "SELECT quantity_on_hand FROM inventory WHERE material_id=? AND warehouse_id=?",
         [material_id, origin_warehouse_id]
       );
-      if (!stock || stock.quantity_on_hand < quantity_ordered) {
+      if (!stock || Number(stock.quantity_on_hand) < Number(quantity_ordered)) {
         return res.status(400).json({ error: `Insufficient stock in selected warehouse (Available: ${stock?.quantity_on_hand || 0})` });
       }
 
@@ -983,9 +983,9 @@ app.post("/api/inventory/adjust", checkAuth, opsOnly, validate(V.inventory), asy
       const qty = adjustment_type === "ADD" ? quantity : 0;
       await db.query("INSERT INTO inventory (material_id, warehouse_id, quantity_on_hand, reorder_threshold) VALUES (?,?,?,100)", [material_id, warehouse_id, qty]);
     } else {
-      const cur    = parseFloat(existing[0].quantity_on_hand);
-      const thresh = parseFloat(existing[0].reorder_threshold);
-      const newQty = adjustment_type === "ADD" ? cur + quantity : Math.max(0, cur - quantity);
+      const cur    = Number(existing[0].quantity_on_hand);
+      const thresh = Number(existing[0].reorder_threshold);
+      const newQty = adjustment_type === "ADD" ? cur + Number(quantity) : Math.max(0, cur - Number(quantity));
       await db.query("UPDATE inventory SET quantity_on_hand=?, last_updated=NOW() WHERE material_id=? AND warehouse_id=?", [newQty, material_id, warehouse_id]);
       if (newQty < thresh) {
         const [[meta]] = await db.query(

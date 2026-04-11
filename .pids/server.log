@@ -1,1 +1,22 @@
-nohup: npm: No such file or directory
+
+> cryochain-server@2.0.0 dev
+> nodemon server.js
+
+[33m[nodemon] 3.1.14[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: js,mjs,cjs,json[39m
+[32m[nodemon] starting `node server.js`[39m
+
+🚀 CryoChain running on port 5001
+────────────────────────────────────
+socket.io  • node-cron  • multer
+rate-limit • joi • pdfkit • nodemailer
+bcrypt     • JWT • redis (optional)
+────────────────────────────────────
+
+[Dashboard] DEBUG :: 2026-04-11T12:23:19.400Z :: Syncing 10 shipments, 7 active.
+[Dashboard] DEBUG :: 2026-04-11T12:23:19.427Z :: Syncing 10 shipments, 7 active.
+[Dashboard] DEBUG :: 2026-04-11T12:26:09.277Z :: Syncing 10 shipments, 7 active.
+[Dashboard] DEBUG :: 2026-04-11T12:26:09.288Z :: Syncing 10 shipments, 7 active.
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
