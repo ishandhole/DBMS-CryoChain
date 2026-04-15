@@ -15,8 +15,24 @@ rate-limit • joi • pdfkit • nodemailer
 bcrypt     • JWT • redis (optional)
 ────────────────────────────────────
 
-[Dashboard] DEBUG :: 2026-04-11T12:23:19.400Z :: Syncing 10 shipments, 7 active.
-[Dashboard] DEBUG :: 2026-04-11T12:23:19.427Z :: Syncing 10 shipments, 7 active.
-[Dashboard] DEBUG :: 2026-04-11T12:26:09.277Z :: Syncing 10 shipments, 7 active.
-[Dashboard] DEBUG :: 2026-04-11T12:26:09.288Z :: Syncing 10 shipments, 7 active.
+[Dashboard] DEBUG :: 2026-04-15T18:09:21.415Z :: Syncing 11 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:09:21.422Z :: Syncing 11 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:09:27.117Z :: Syncing 11 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:09:28.576Z :: Syncing 11 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:09:28.586Z :: Syncing 11 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:09:37.656Z :: Syncing 11 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:09:37.663Z :: Syncing 11 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:09:40.120Z :: Syncing 11 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:09:40.125Z :: Syncing 11 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:09:43.107Z :: Syncing 11 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:09:45.110Z :: Syncing 11 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:09:48.115Z :: Syncing 11 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:09:53.105Z :: Syncing 11 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:09:58.110Z :: Syncing 12 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:10:03.106Z :: Syncing 12 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:10:08.103Z :: Syncing 12 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:10:13.106Z :: Syncing 12 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:10:14.677Z :: Syncing 12 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:10:14.686Z :: Syncing 12 shipments, 8 active.
+[Dashboard] DEBUG :: 2026-04-15T18:10:18.106Z :: Syncing 12 shipments, 8 active.
 [31m[nodemon] app crashed - waiting for file changes before starting...[39m
