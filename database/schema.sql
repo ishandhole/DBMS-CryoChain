@@ -1,23 +1,9 @@
 -- ================================================================
 --  CryoChain v2 — Complete MySQL Database Schema
---
---  This file demonstrates ALL SQL concepts covered in DBMS lab:
---
---  Exp 2  → DDL: CREATE, ALTER, DROP, TRUNCATE, constraints
---  Exp 3  → DML: INSERT, UPDATE, DELETE, SELECT
---  Exp 5  → WHERE with AND, OR, NOT, IN, BETWEEN, LIKE
---  Exp 6  → ORDER BY, INNER JOIN, LEFT/RIGHT/FULL OUTER JOIN
---  Exp 7  → GROUP BY, HAVING, aggregate functions (COUNT, SUM,
---             AVG, MIN, MAX), subqueries, UNION/UNION ALL, VIEWS
---  Exp 9  → Indexes (CREATE INDEX, composite, unique indexes)
---  Exp 10 → TCL (COMMIT, ROLLBACK, SAVEPOINT), DCL (GRANT, REVOKE)
---
 --  Run once:  mysql -u root -p < database/schema.sql
 -- ================================================================
-
 -- ================================================================
 --  SECTION 1 — CREATE DATABASE (DDL)
---  Exp 2: CREATE is a DDL command. It defines database structure.
 -- ================================================================
 
 DROP DATABASE IF EXISTS cryochain;
@@ -26,35 +12,26 @@ USE cryochain;
 
 
 -- ================================================================
---  SECTION 2 — CREATE TABLES WITH CONSTRAINTS (DDL — Exp 2)
---
---  Constraints demonstrated:
---    PRIMARY KEY  — uniquely identifies each row
---    FOREIGN KEY  — links tables, enforces referential integrity
---    NOT NULL     — column must always have a value
---    UNIQUE       — no two rows can have the same value
---    DEFAULT      — value used when no value is provided
---    CHECK        — validates data before it is inserted (Exp 2)
---    ENUM         — a built-in CHECK that limits allowed values
+--  SECTION 2 — CREATE TABLES WITH CONSTRAINTS 
 -- ================================================================
 
 -- ── Table 1: tenants ────────────────────────────────────────
 -- Stores each pharmaceutical client company using the platform.
 CREATE TABLE tenants (
-    tenant_id    INT           AUTO_INCREMENT PRIMARY KEY,  -- PK: unique ID per company
-    company_name VARCHAR(150)  NOT NULL,                   -- NOT NULL: name is mandatory
+    tenant_id    INT           AUTO_INCREMENT PRIMARY KEY,  
+    company_name VARCHAR(150)  NOT NULL,                  
     country      VARCHAR(100),
-    plan_type    ENUM('Standard','Enterprise') DEFAULT 'Standard',  -- ENUM acts as CHECK
+    plan_type    ENUM('Standard','Enterprise') DEFAULT 'Standard',  
     status       ENUM('ACTIVE','SUSPENDED','INACTIVE') DEFAULT 'ACTIVE',
-    created_at   TIMESTAMP     DEFAULT CURRENT_TIMESTAMP   -- DEFAULT: auto-filled
+    created_at   TIMESTAMP     DEFAULT CURRENT_TIMESTAMP   
 );
 
 -- ── Table 2: users ──────────────────────────────────────────
 -- Stores login accounts for both ops team and client users.
 CREATE TABLE users (
     user_id       INT          AUTO_INCREMENT PRIMARY KEY,
-    tenant_id     INT,                                      -- NULL allowed: ops staff have no tenant
-    email         VARCHAR(200) NOT NULL UNIQUE,             -- UNIQUE: no two users share an email
+    tenant_id     INT,                                     
+    email         VARCHAR(200) NOT NULL UNIQUE,             
     password_hash VARCHAR(255) NOT NULL,
     full_name     VARCHAR(150),
     role          ENUM('ops_admin','ops_staff','client_admin','client_user') NOT NULL,
@@ -72,8 +49,8 @@ CREATE TABLE warehouses (
     name         VARCHAR(150) NOT NULL,
     city         VARCHAR(100),
     country      VARCHAR(100),
-    iata_code    VARCHAR(5),                                -- Airport code, optional
-    latitude     DECIMAL(9,6),                             -- GPS coordinates for live map
+    iata_code    VARCHAR(5),                                
+    latitude     DECIMAL(9,6),                             
     longitude    DECIMAL(9,6),
     hub_status   ENUM('OPTIMAL','STRESSED','OFFLINE') DEFAULT 'OPTIMAL',
     created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
@@ -87,7 +64,7 @@ CREATE TABLE warehouses (
 CREATE TABLE raw_materials (
     material_id     INT          AUTO_INCREMENT PRIMARY KEY,
     material_name   VARCHAR(200) NOT NULL,
-    sku             VARCHAR(100) NOT NULL UNIQUE,           -- UNIQUE: no duplicate SKUs
+    sku             VARCHAR(100) NOT NULL UNIQUE,           
     description     TEXT,
     temp_zone       ENUM('2_8C','minus20C','minus70C') NOT NULL,
     unit_of_measure VARCHAR(50),
@@ -100,7 +77,7 @@ CREATE TABLE raw_materials (
 CREATE TABLE material_certifications (
     cert_id       INT          AUTO_INCREMENT PRIMARY KEY,
     material_id   INT          NOT NULL,
-    cert_body     VARCHAR(100) NOT NULL,                   -- e.g. WHO, EMA, FDA
+    cert_body     VARCHAR(100) NOT NULL,                   
     cert_number   VARCHAR(100),
     cert_type     VARCHAR(100),
     issued_date   DATE,
@@ -309,10 +286,7 @@ CREATE TABLE audit_log (
 
 
 -- ================================================================
---  SECTION 3 — ALTER TABLE (DDL — Exp 2)
---
---  ALTER is used to change table structure AFTER it is created.
---  It can ADD, MODIFY, or DROP columns and constraints.
+--  SECTION 3 — ALTER TABLE 
 -- ================================================================
 
 -- ADD a new column to an existing table
@@ -336,16 +310,7 @@ ALTER TABLE carriers
 
 
 -- ================================================================
---  SECTION 4 — INDEXES (Exp 9)
---
---  Indexes speed up SELECT queries on frequently searched columns.
---  Without an index, MySQL does a full table scan (reads every row).
---  With an index, it jumps directly to the matching rows.
---
---  Types used here:
---    Single-column index   — speeds up queries filtering on one column
---    Composite index       — speeds up queries filtering on two columns together
---    Unique index          — enforces uniqueness AND speeds up lookup
+--  SECTION 4 — INDEXES 
 -- ================================================================
 
 -- Single-column index on shipment status
@@ -386,15 +351,7 @@ CREATE INDEX idx_procurement_status
 
 
 -- ================================================================
---  SECTION 5 — VIEWS (Exp 7)
---
---  A VIEW is a saved SELECT query. It looks like a table but
---  stores no data itself — it fetches from the real tables each
---  time it is queried. Views simplify complex joins.
---
---  Joins used in views (Exp 6):
---    INNER JOIN  — only rows with a match in BOTH tables
---    LEFT JOIN   — all rows from the left table, NULLs for no match
+--  SECTION 5 — VIEWS 
 -- ================================================================
 
 -- View 1: Full shipment summary joining 5 tables
@@ -528,421 +485,4 @@ VALUES (NULL, 'admin@cryochain.io',
 -- Password is Admin@1234 (bcrypt hash — never store plain text)
 
 
--- ================================================================
---  SECTION 7 — SAMPLE ANALYTICAL QUERIES
---  (Run these after adding data through the UI to see results)
--- ================================================================
 
--- ── Exp 3: Basic SELECT, UPDATE, DELETE ──────────────────────
-
--- SELECT all active users
--- SELECT * FROM users WHERE is_active = TRUE;
-
--- SELECT specific columns with a condition
--- SELECT full_name, email, role FROM users WHERE role = 'ops_admin';
-
--- UPDATE: mark a carrier as inactive
--- UPDATE carriers SET is_active = FALSE WHERE carrier_id = 1;
-
--- DELETE: remove a resolved alert
--- DELETE FROM alerts WHERE is_resolved = 1 AND resolved_at < NOW() - INTERVAL 30 DAY;
-
-
--- ── Exp 5: WHERE with AND, OR, NOT, IN, BETWEEN, LIKE ────────
-
--- AND: shipments that are critical AND at risk
--- SELECT * FROM shipment_orders
--- WHERE urgency = 'CRITICAL' AND status = 'AT_RISK';
-
--- OR: shipments that are in transit OR at risk
--- SELECT * FROM shipment_orders
--- WHERE status = 'IN_TRANSIT' OR status = 'AT_RISK';
-
--- NOT: all shipments that are NOT delivered or cancelled
--- SELECT * FROM shipment_orders
--- WHERE status NOT IN ('DELIVERED', 'CANCELLED');
-
--- IN: shipments for specific urgency levels
--- SELECT order_id, dest_city, urgency FROM shipment_orders
--- WHERE urgency IN ('CRITICAL', 'STANDARD');
-
--- BETWEEN: temperature logs recorded in a date range
--- SELECT * FROM temperature_logs
--- WHERE recorded_at BETWEEN '2025-01-01' AND '2025-12-31';
-
--- BETWEEN: inventory with stock between two values
--- SELECT material_id, quantity_on_hand FROM inventory
--- WHERE quantity_on_hand BETWEEN 100 AND 500;
-
--- LIKE with % wildcard: find companies whose name starts with 'Bio'
--- SELECT * FROM tenants WHERE company_name LIKE 'Bio%';
-
--- LIKE with _ wildcard: find warehouses with a 3-letter IATA code matching _U_
--- SELECT name, iata_code FROM warehouses WHERE iata_code LIKE '_U_';
-
--- IS NULL: find shipments with no carrier assigned yet
--- SELECT order_id, status FROM shipment_orders
--- WHERE origin_warehouse_id IS NULL;
-
-
--- ── Exp 6: ORDER BY, JOINS ────────────────────────────────────
-
--- ORDER BY ASC (ascending): cheapest routes first
--- SELECT origin_city, dest_city, base_cost_usd, transport_mode
--- FROM routes
--- ORDER BY base_cost_usd ASC;
-
--- ORDER BY DESC (descending): most recent shipments first
--- SELECT order_id, dest_city, status, created_at
--- FROM shipment_orders
--- ORDER BY created_at DESC;
-
--- ORDER BY multiple columns: sort by status then by cost
--- SELECT order_id, status, estimated_cost_usd
--- FROM shipment_orders
--- ORDER BY status ASC, estimated_cost_usd DESC;
-
--- INNER JOIN: show shipments with their client company name
--- SELECT so.order_id, t.company_name, so.status, so.dest_city
--- FROM shipment_orders so
--- INNER JOIN tenants t ON so.tenant_id = t.tenant_id;
-
--- LEFT OUTER JOIN: show all materials even if they have no inventory yet
--- SELECT rm.material_name, rm.sku, i.quantity_on_hand, w.name AS warehouse
--- FROM raw_materials rm
--- LEFT JOIN inventory i   ON rm.material_id  = i.material_id
--- LEFT JOIN warehouses w  ON i.warehouse_id  = w.warehouse_id;
-
--- RIGHT OUTER JOIN: all warehouses even if no inventory stored there
--- SELECT w.name AS warehouse, w.city, rm.material_name, i.quantity_on_hand
--- FROM inventory i
--- RIGHT JOIN warehouses w ON i.warehouse_id = w.warehouse_id
--- LEFT  JOIN raw_materials rm ON i.material_id = rm.material_id;
-
--- Multi-table JOIN: shipment with material, client, and carrier
--- SELECT so.order_id, t.company_name, rm.material_name,
---        so.quantity_ordered, c.carrier_name, so.status
--- FROM shipment_orders so
--- INNER JOIN tenants       t  ON so.tenant_id    = t.tenant_id
--- INNER JOIN raw_materials rm ON so.material_id  = rm.material_id
--- LEFT JOIN  shipment_tracking st ON so.order_id = st.order_id
--- LEFT JOIN  carriers c ON st.carrier_id         = c.carrier_id
--- ORDER BY so.created_at DESC;
-
-
--- ── Exp 7: Aggregate Functions ───────────────────────────────
-
--- COUNT: total number of shipments
--- SELECT COUNT(*) AS total_shipments FROM shipment_orders;
-
--- COUNT with condition: how many shipments are currently in transit
--- SELECT COUNT(*) AS in_transit_count
--- FROM shipment_orders
--- WHERE status = 'IN_TRANSIT';
-
--- SUM: total value of all shipments
--- SELECT SUM(estimated_cost_usd) AS total_value FROM shipment_orders;
-
--- AVG: average cost per shipment
--- SELECT AVG(estimated_cost_usd) AS average_cost FROM shipment_orders;
-
--- MIN and MAX: cheapest and most expensive shipment
--- SELECT MIN(estimated_cost_usd) AS cheapest,
---        MAX(estimated_cost_usd) AS most_expensive
--- FROM shipment_orders;
-
--- MIN and MAX together with difference (like Exp 7 example)
--- SELECT MAX(estimated_cost_usd) - MIN(estimated_cost_usd) AS cost_range
--- FROM shipment_orders;
-
--- COUNT excursions in the last 24 hours
--- SELECT COUNT(*) AS excursions_24h
--- FROM temperature_logs
--- WHERE is_excursion = 1
---   AND recorded_at > NOW() - INTERVAL 24 HOUR;
-
-
--- ── Exp 7: GROUP BY and HAVING ───────────────────────────────
-
--- GROUP BY: count shipments per client (each tenant)
--- SELECT t.company_name, COUNT(so.order_id) AS shipment_count
--- FROM shipment_orders so
--- INNER JOIN tenants t ON so.tenant_id = t.tenant_id
--- GROUP BY t.company_name
--- ORDER BY shipment_count DESC;
-
--- GROUP BY: total quantity shipped per material
--- SELECT rm.material_name, SUM(so.quantity_ordered) AS total_shipped
--- FROM shipment_orders so
--- INNER JOIN raw_materials rm ON so.material_id = rm.material_id
--- GROUP BY rm.material_name;
-
--- GROUP BY: count shipments by status
--- SELECT status, COUNT(*) AS count
--- FROM shipment_orders
--- GROUP BY status
--- ORDER BY count DESC;
-
--- GROUP BY + HAVING: only show clients with more than 5 shipments
--- SELECT t.company_name, COUNT(so.order_id) AS shipment_count
--- FROM shipment_orders so
--- INNER JOIN tenants t ON so.tenant_id = t.tenant_id
--- GROUP BY t.company_name
--- HAVING COUNT(so.order_id) > 5;
-
--- GROUP BY + HAVING: warehouses with total stock below 500 units
--- SELECT w.name, SUM(i.quantity_on_hand) AS total_stock
--- FROM inventory i
--- INNER JOIN warehouses w ON i.warehouse_id = w.warehouse_id
--- GROUP BY w.name
--- HAVING SUM(i.quantity_on_hand) < 500;
-
--- GROUP BY + AVG: average temperature per shipment
--- SELECT order_id, AVG(temperature_celsius) AS avg_temp,
---        MIN(temperature_celsius) AS min_temp,
---        MAX(temperature_celsius) AS max_temp
--- FROM temperature_logs
--- GROUP BY order_id;
-
--- GROUP BY + COUNT: number of excursions per shipment
--- SELECT order_id, COUNT(*) AS excursion_count
--- FROM temperature_logs
--- WHERE is_excursion = 1
--- GROUP BY order_id
--- HAVING COUNT(*) > 0
--- ORDER BY excursion_count DESC;
-
-
--- ── Exp 7: Subqueries / Nested Queries ───────────────────────
-
--- Subquery: find clients who have NEVER placed a shipment
--- (equivalent to Exp 7 Q1a pattern: distributors who never supplied)
--- SELECT company_name FROM tenants
--- WHERE tenant_id NOT IN (
---     SELECT DISTINCT tenant_id FROM shipment_orders
--- );
-
--- Subquery: find materials that have NEVER been shipped
--- SELECT material_name, sku FROM raw_materials
--- WHERE material_id NOT IN (
---     SELECT DISTINCT material_id FROM shipment_orders
--- );
-
--- Subquery in WHERE: find all shipments costing more than the average
--- SELECT order_id, dest_city, estimated_cost_usd
--- FROM shipment_orders
--- WHERE estimated_cost_usd > (
---     SELECT AVG(estimated_cost_usd) FROM shipment_orders
--- );
-
--- Correlated subquery: for each tenant, find their most expensive shipment
--- SELECT t.company_name, so.order_id, so.estimated_cost_usd
--- FROM shipment_orders so
--- INNER JOIN tenants t ON so.tenant_id = t.tenant_id
--- WHERE so.estimated_cost_usd = (
---     SELECT MAX(s2.estimated_cost_usd)
---     FROM shipment_orders s2
---     WHERE s2.tenant_id = so.tenant_id
--- );
-
--- Subquery: find all at-risk shipments and their last temperature reading
--- SELECT so.order_id, t.company_name,
---        (SELECT temperature_celsius FROM temperature_logs tl
---         WHERE tl.order_id = so.order_id
---         ORDER BY recorded_at DESC LIMIT 1) AS latest_temp
--- FROM shipment_orders so
--- INNER JOIN tenants t ON so.tenant_id = t.tenant_id
--- WHERE so.status = 'AT_RISK';
-
-
--- ── Exp 7: SET Operations — UNION and UNION ALL ───────────────
-
--- UNION: list all cities that are either an origin or a destination
--- (UNION removes duplicates — a city appearing in both lists appears once)
--- SELECT origin_city AS city FROM routes  WHERE origin_city IS NOT NULL
--- UNION
--- SELECT dest_city   AS city FROM routes  WHERE dest_city IS NOT NULL
--- ORDER BY city;
-
--- UNION ALL: same but keeps duplicates
--- (shows how many times each city appears across both columns)
--- SELECT origin_city AS city FROM routes WHERE origin_city IS NOT NULL
--- UNION ALL
--- SELECT dest_city   AS city FROM routes WHERE dest_city IS NOT NULL
--- ORDER BY city;
-
--- UNION: show all critical issues (excursions + critical alerts)
--- SELECT 'EXCURSION' AS issue_type, CAST(order_id AS CHAR) AS ref_id,
---        location AS detail, recorded_at AS issue_time
--- FROM temperature_logs
--- WHERE is_excursion = 1
--- UNION
--- SELECT 'ALERT' AS issue_type, CAST(alert_id AS CHAR) AS ref_id,
---        severity AS detail, created_at AS issue_time
--- FROM alerts
--- WHERE severity = 'CRITICAL' AND is_resolved = 0
--- ORDER BY issue_time DESC;
-
-
--- ================================================================
---  SECTION 8 — TRANSACTION CONTROL LANGUAGE / TCL (Exp 10)
---
---  TCL commands manage transactions. A transaction is a group of
---  DML statements (INSERT/UPDATE/DELETE) treated as ONE unit.
---  Either ALL succeed (COMMIT) or ALL are undone (ROLLBACK).
---
---  TCL works ONLY with DML. DDL commands like CREATE and DROP
---  are auto-committed and cannot be rolled back.
--- ================================================================
-
--- Example: Safe shipment status update using TCL
--- (Run in MySQL Workbench or CLI — not in this file directly)
-
--- START TRANSACTION;
---
---     -- Step 1: Update the shipment status
---     UPDATE shipment_orders
---     SET status = 'IN_TRANSIT', updated_at = NOW()
---     WHERE order_id = 1;
---
---     -- Step 2: Create a SAVEPOINT before inserting the audit log
---     SAVEPOINT before_audit;
---
---     -- Step 3: Insert audit log entry
---     INSERT INTO audit_log (user_id, tenant_id, action, entity_type, entity_id)
---     VALUES (1, 1, 'SHIPMENT_DISPATCHED', 'shipment_orders', 1);
---
---     -- If the audit log insert fails, roll back ONLY to the savepoint
---     -- (the shipment status update is still intact)
---     -- ROLLBACK TO SAVEPOINT before_audit;
---
---     -- Step 4: Update tracking position
---     UPDATE shipment_tracking
---     SET status = 'IN_TRANSIT', progress_pct = 10,
---         current_location = 'Mumbai Airport', last_updated = NOW()
---     WHERE order_id = 1;
---
--- -- If everything succeeded, commit all changes permanently
--- COMMIT;
---
--- -- If anything went wrong anywhere, undo everything
--- -- ROLLBACK;
-
-
--- TCL Example 2: Inventory adjustment with rollback on error
--- START TRANSACTION;
---
---     SAVEPOINT start_adjustment;
---
---     -- Deduct stock from warehouse
---     UPDATE inventory
---     SET quantity_on_hand = quantity_on_hand - 200
---     WHERE material_id = 1 AND warehouse_id = 1;
---
---     -- Check if stock went negative (business rule)
---     -- If quantity_on_hand < 0, rollback
---     -- ROLLBACK TO SAVEPOINT start_adjustment;
---
---     -- Otherwise commit
--- COMMIT;
-
-
--- ================================================================
---  SECTION 9 — DATA CONTROL LANGUAGE / DCL (Exp 10)
---
---  DCL commands control WHO can do WHAT in the database.
---  GRANT gives permissions. REVOKE removes them.
---  This is essential in a multi-user pharmaceutical system where
---  different users should see different data.
--- ================================================================
-
--- First create separate MySQL database users for each role
--- (Run as root in MySQL CLI)
-
--- CREATE USER 'cryo_ops'@'localhost'      IDENTIFIED BY 'OpsSecurePass#1';
--- CREATE USER 'cryo_client'@'localhost'   IDENTIFIED BY 'ClientSecurePass#2';
--- CREATE USER 'cryo_readonly'@'localhost' IDENTIFIED BY 'ReadOnlyPass#3';
-
--- GRANT: give ops team full access to all tables
--- GRANT SELECT, INSERT, UPDATE, DELETE ON cryochain.* TO 'cryo_ops'@'localhost';
-
--- GRANT: give client users access only to their own relevant tables
--- (They should NOT see other tenants' data — enforced at app level too)
--- GRANT SELECT ON cryochain.shipment_orders     TO 'cryo_client'@'localhost';
--- GRANT SELECT ON cryochain.procurement_requests TO 'cryo_client'@'localhost';
--- GRANT SELECT ON cryochain.temperature_logs    TO 'cryo_client'@'localhost';
--- GRANT SELECT ON cryochain.compliance_documents TO 'cryo_client'@'localhost';
--- GRANT SELECT ON cryochain.alerts              TO 'cryo_client'@'localhost';
--- GRANT INSERT ON cryochain.procurement_requests TO 'cryo_client'@'localhost';
-
--- GRANT: give a read-only reporting user SELECT access only
--- GRANT SELECT ON cryochain.* TO 'cryo_readonly'@'localhost';
-
--- GRANT: give access to a specific view only (extra security)
--- GRANT SELECT ON cryochain.v_low_inventory TO 'cryo_readonly'@'localhost';
-
--- Apply the grants immediately
--- FLUSH PRIVILEGES;
-
--- REVOKE: remove INSERT permission from client user (read-only from now on)
--- REVOKE INSERT ON cryochain.procurement_requests FROM 'cryo_client'@'localhost';
-
--- REVOKE: remove ALL permissions from a user (e.g. when they leave)
--- REVOKE ALL PRIVILEGES ON cryochain.* FROM 'cryo_client'@'localhost';
-
--- Show current grants for a user
--- SHOW GRANTS FOR 'cryo_ops'@'localhost';
-
-
--- ================================================================
---  SECTION 10 — TRUNCATE (DDL — Exp 2)
---
---  TRUNCATE removes ALL rows from a table instantly.
---  Faster than DELETE because it does not log individual rows.
---  It CANNOT be rolled back (it is auto-committed like DDL).
---  The table structure is preserved.
--- ================================================================
-
--- WARNING: Only use TRUNCATE during development/testing.
--- TRUNCATE TABLE temperature_logs;   -- Removes ALL temperature readings
--- TRUNCATE TABLE alerts;             -- Removes ALL alerts
-
--- Safe way to truncate in MySQL (requires disabling foreign key checks):
--- SET FOREIGN_KEY_CHECKS = 0;
--- TRUNCATE TABLE audit_log;
--- TRUNCATE TABLE alerts;
--- TRUNCATE TABLE compliance_documents;
--- TRUNCATE TABLE temperature_logs;
--- TRUNCATE TABLE shipment_tracking;
--- TRUNCATE TABLE shipment_orders;
--- TRUNCATE TABLE procurement_requests;
--- TRUNCATE TABLE inventory;
--- SET FOREIGN_KEY_CHECKS = 1;
-
-
--- ================================================================
---  SECTION 11 — REMOVE INDEX (Exp 9)
---
---  Indexes use disk space. If a column is rarely searched,
---  the index wastes space. Use ALTER TABLE to remove it.
--- ================================================================
-
--- Syntax to remove an index (Exp 9):
--- ALTER TABLE temperature_logs DROP INDEX idx_temp_excursions;
--- ALTER TABLE shipment_orders  DROP INDEX idx_orders_status;
-
--- To check existing indexes on a table:
--- SHOW INDEX FROM shipment_orders;
--- SHOW INDEX FROM temperature_logs;
-
-
--- ================================================================
---  FIRST LOGIN
---
---  Email:    admin@cryochain.io
---  Password: Admin@1234
---
---  After logging in, go to System Setup and add:
---  Client companies → Users → Materials → Warehouses → Carriers → Routes
---  Then Procurement → Shipments → Temperature → Compliance will all work.
--- ================================================================
