@@ -1,5 +1,5 @@
 -- ================================================================
---  CryoChain v2 — Complete MySQL Database Schema
+--  CryoChain — Complete MySQL Database Schema
 --  Run once:  mysql -u root -p < database/schema.sql
 -- ================================================================
 -- ================================================================
@@ -54,7 +54,7 @@ CREATE TABLE warehouses (
     longitude    DECIMAL(9,6),
     hub_status   ENUM('OPTIMAL','STRESSED','OFFLINE') DEFAULT 'OPTIMAL',
     created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-    -- CHECK constraint (Exp 2): latitude must be a valid geographic value
+    -- CHECK constraint: latitude must be a valid geographic value
     CONSTRAINT chk_latitude  CHECK (latitude  BETWEEN -90  AND 90),
     CONSTRAINT chk_longitude CHECK (longitude BETWEEN -180 AND 180)
 );
